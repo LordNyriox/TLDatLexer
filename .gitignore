@@ -1,0 +1,8 @@
+*.aps
+*.opensdf
+*.user
+*.sdf
+*.suo
+Release/
+Debug/
+/ipch
