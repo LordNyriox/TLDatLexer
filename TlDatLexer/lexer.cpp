@@ -266,3 +266,53 @@ void SCI_METHOD TLDatLexer::Fold(unsigned int start, int length, int, IDocument*
 			doc->SetLevel(line, level);
 	}
 }
+
+void matchTags(unsigned int pos, sptr_t window, SciFnDirect message) {
+	int curLine = message(window, SCI_LINEFROMPOSITION, pos, 0);
+	int state = message(window, SCI_GETLINESTATE, curLine, 0);
+	if(state == 0) return;
+
+	unsigned int curBegin, curEnd;
+	int opLine = curLine;
+	unsigned int opBegin, opEnd;
+
+	int level = (message(window, SCI_GETFOLDLEVEL, curLine, 0) & ~SC_FOLDLEVELHEADERFLAG);
+	if(state == TextStyle::openTag) {
+		int end = message(window, SCI_GETLINECOUNT, 0, 0);
+		for(;;) {
+			if(++opLine == end) return;
+			if((message(window, SCI_GETFOLDLEVEL, opLine, 0) & ~SC_FOLDLEVELHEADERFLAG) == level) break;
+		}
+	} else {
+		int end = -1;
+		for(;;) {
+			if(--opLine == end) return;
+			if((message(window, SCI_GETFOLDLEVEL, opLine, 0) & ~SC_FOLDLEVELHEADERFLAG) == level) break;
+		}
+	}
+
+	curBegin = message(window, SCI_POSITIONFROMLINE, curLine, 0);
+	curEnd = message(window, SCI_GETLINEENDPOSITION, curLine, 0);
+	while(message(window, SCI_GETCHARAT, curBegin, 0) != '[') ++curBegin;
+	while(message(window, SCI_GETCHARAT, curEnd - 1, 0) != ']') --curEnd;
+
+	opBegin = message(window, SCI_POSITIONFROMLINE, opLine, 0);
+	opEnd = message(window, SCI_GETLINEENDPOSITION, opLine, 0);
+	while(message(window, SCI_GETCHARAT, opBegin, 0) != '[') ++opBegin;
+	while(message(window, SCI_GETCHARAT, opEnd - 1, 0) != ']') --opEnd;
+
+	if(pos < curBegin || pos > curEnd) return;
+
+	message(window, SCI_SETINDICATORCURRENT, SCE_UNIVERSAL_TAGMATCH, 0);
+	message(window, SCI_INDICATORFILLRANGE, curBegin, curEnd - curBegin);
+	message(window, SCI_INDICATORFILLRANGE, opBegin, opEnd - opBegin);
+
+	if(state == TextStyle::openTag)
+		message(window, SCI_BRACEHIGHLIGHT, curBegin, opEnd - 1);
+	else
+		message(window, SCI_BRACEHIGHLIGHT, opBegin, curEnd - 1);
+
+	int curColumn = message(window, SCI_GETCOLUMN, curBegin, 0);
+	int opColumn = message(window, SCI_GETCOLUMN, opBegin, 0);
+	message(window, SCI_SETHIGHLIGHTGUIDE, curColumn < opColumn? curColumn: opColumn, 0);
+}

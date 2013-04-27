@@ -20,7 +20,6 @@ void __cdecl about() {
 	);
 }
 
-/*
 bool isTlDatLexer() {
 	int id;
 	SendMessage(notepad, NPPM_GETCURRENTLANGTYPE, 0, reinterpret_cast<LPARAM>(&id));
@@ -39,7 +38,6 @@ sptr_t getScintillaWindow(void* handle) {
 SciFnDirect getScintillaFunction(void* handle) {
 	return reinterpret_cast<SciFnDirect>(SendMessage(static_cast<HWND>(handle), SCI_GETDIRECTFUNCTION, 0, 0));
 }
-*/
 
 }
 
@@ -56,7 +54,38 @@ BOOL isUnicode() { return TRUE; }
 const wchar_t* getName() { return L"TLDatLexer"; }
 void setInfo(NppData data) { notepad = data._nppHandle; }
 LRESULT messageProc(UINT, WPARAM, LPARAM) { return TRUE; }
-void beNotified(SCNotification*) {}
+
+void beNotified(SCNotification* notification) {
+	static int tagMatchIn = -1;
+
+	switch(notification->nmhdr.code) {
+	case SCN_UPDATEUI: {
+		if(!isTlDatLexer()) break;
+		if(SendMessage(static_cast<HWND>(notification->nmhdr.hwndFrom), SCI_GETLENGTH, 0, 0) == 0) break;
+
+		unsigned int start = SendMessage(static_cast<HWND>(notification->nmhdr.hwndFrom), SCI_INDICATORSTART, SCE_UNIVERSAL_TAGMATCH, 0);
+		unsigned int end = SendMessage(static_cast<HWND>(notification->nmhdr.hwndFrom), SCI_INDICATOREND, SCE_UNIVERSAL_TAGMATCH, 0);
+		if(start != end)
+			tagMatchIn = 1;
+		else {
+			tagMatchIn = 2;
+			SendMessage(static_cast<HWND>(notification->nmhdr.hwndFrom), SCI_SETINDICATORCURRENT, SCE_UNIVERSAL_TAGMATCH, 0);
+			SendMessage(static_cast<HWND>(notification->nmhdr.hwndFrom), SCI_INDICATORFILLRANGE, 0, 1);
+		}
+	} break;
+	case SCN_MODIFIED:
+		if((notification->modificationType & SC_MOD_CHANGEINDICATOR) == 0) break;
+		if(tagMatchIn == -1) break;
+		if(--tagMatchIn != 0) break;
+
+		tagMatchIn = -1;
+		auto window = getScintillaWindow(notification->nmhdr.hwndFrom);
+		auto message = getScintillaFunction(notification->nmhdr.hwndFrom);
+		unsigned int pos = message(window, SCI_GETCURRENTPOS, 0, 0);
+		matchTags(pos, window, message);
+	break;
+	}
+}
 
 ///// Scintilla Exports /////
 

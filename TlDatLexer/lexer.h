@@ -23,4 +23,6 @@ public:
 	void SCI_METHOD Fold(unsigned int, int, int, IDocument*) override;
 };
 
+void matchTags(unsigned int pos, sptr_t windows, SciFnDirect message);
+
 #endif
