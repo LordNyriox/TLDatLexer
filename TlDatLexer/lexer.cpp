@@ -55,7 +55,7 @@ ValType getType(unsigned int start, unsigned int end, LexAccessor& doc) {
 
 bool isWhitespace(char c) { return c == ' ' || c == '\t'; }
 bool isEol(char c) { return c == '\n' || c == '\r'; }
-bool isNumeric(char c) { return c >= '0' && c <= '9'; }
+bool isDigit(char c) { return c >= '0' && c <= '9'; }
 bool isSign(char c) { return c == '-' || c == '+'; }
 bool isExponent(char c) { return c == 'e' || c == 'E'; }
 
@@ -75,10 +75,113 @@ unsigned int findEol(unsigned int start, LexAccessor& doc) {
 bool ReadInt(unsigned int& pos, unsigned int end, LexAccessor& doc) {
 	assert(pos <= end);
 	if(pos == end) return false;
-	if(!isNumeric(doc[pos])) return false;
+	if(!isDigit(doc[pos])) return false;
 
-	while(++pos != end && isNumeric(doc[pos])) {}
+	while(++pos != end && isDigit(doc[pos])) {}
 	return true;
+}
+
+bool tryParseUInt32(const char* begin, const char* end) {
+	assert(begin < end);
+
+	std::uint32_t num = 0;
+	for(; begin != end; ++begin) {
+		if(!isDigit(*begin)) return false;
+		if(num > 429496729) return false;
+		num *= 10;
+		if(num > num + *begin - '0') return false;
+		num += *begin - '0';
+	}
+
+	return true;
+}
+
+bool tryParseInt32(const char* begin, const char* end) {
+	assert(begin < end);
+
+	bool negate = false;
+	if(isSign(*begin) && *begin++ == '-') negate = true;
+
+	std::int32_t num = 0;
+	for(; begin != end; ++begin) {
+		if(!isDigit(*begin)) return false;
+		if(num > 214748364) return false;
+		num *= 10;
+		if(num > num + *begin - '0' - negate) return false;
+		num += *begin - '0';
+	}
+
+	return true;
+}
+
+bool tryParseInt64(const char* begin, const char* end) {
+	assert(begin < end);
+
+	bool negate = false;
+	if(isSign(*begin) && *begin++ == '-') negate = true;
+
+	std::int64_t num = 0;
+	for(; begin != end; ++begin) {
+		if(!isDigit(*begin)) return false;
+		if(num > 922337203685477580) return false;
+		num *= 10;
+		if(num > num + *begin - '0' - negate) return false;
+		num += *begin - '0';
+	}
+
+	return true;
+}
+
+bool isValidUInt32(unsigned int start, unsigned int end, LexAccessor& doc) {
+	static const std::size_t digits = 10;
+	
+	assert(start < end);
+	if(end - start > 11) return false;
+	char num[digits];
+
+	char* i = num;
+	for(; start != end; ++i, ++start)
+		*i = doc[start];
+
+	return tryParseUInt32(num, i);
+}
+
+bool isValidInt32(unsigned int start, unsigned int end, LexAccessor& doc) {
+	static const std::size_t digits = 11;
+	
+	assert(start < end);
+	if(end - start > 11) return false;
+	char num[digits];
+
+	char* i = num;
+	for(; start != end; ++i, ++start)
+		*i = doc[start];
+
+	return tryParseInt32(num, i);
+}
+
+bool isValidInt64(unsigned int start, unsigned int end, LexAccessor& doc) {
+	static const std::size_t digits = 20;
+	
+	assert(start < end);
+	if(end - start > 11) return false;
+	char num[digits];
+
+	char* i = num;
+	for(; start != end; ++i, ++start)
+		*i = doc[start];
+
+	return tryParseInt64(num, i);
+}
+
+bool isValidBool(unsigned int start, unsigned int end, LexAccessor& doc) {
+	assert(start <= end);
+	switch(end - start) {
+	default: return false;
+	case 1: return doc[start] == '1' || doc[start] == '0';
+	case 4: return nameEquals(start, doc, "TRUE");
+	case 5: return nameEquals(start, doc, "FALSE");
+	}
 }
 
 void LexLine(unsigned int start, unsigned int end, int line, LexAccessor& doc) {
@@ -160,26 +263,20 @@ void LexLine(unsigned int start, unsigned int end, int line, LexAccessor& doc) {
 		}
 		start = old;
 
-		if(type == ValType::bool_) {
-			switch(end - start) {
-			default: goto MarkInvalidValue;
-			case 1:
-				if(doc[start] != '1' && doc[start] != '0') goto MarkInvalidValue;
-			return;
-			case 4:
-				if(!nameEquals(start, doc, "TRUE")) goto MarkInvalidValue;
-			return;
-			case 5:
-				if(!nameEquals(start, doc, "FALSE")) goto MarkInvalidValue;
-			return;
-			}
-		}
+		if(type == ValType::bool_)
+			if(isValidBool(start, end, doc)) return;
+			else goto MarkInvalidValue;
+		else if(type == ValType::int32)
+			if(isValidInt32(start, end, doc)) return;
+			else goto MarkInvalidValue;
+		else if(type == ValType::uint32)
+			if(isValidUInt32(start, end, doc)) return;
+			else goto MarkInvalidValue;
+		else if(type == ValType::int64)
+			if(isValidInt64(start, end, doc)) return;
+			else goto MarkInvalidValue;
 
-		if(isSign(doc[start])) {
-			if(type == ValType::uint32) goto MarkInvalidValue;
-			++start;
-		}
-
+		if(isSign(doc[start])) ++start;
 		if(!ReadInt(start, end, doc)) goto MarkInvalidValue;
 		if(start == end) return;
 		if(type == ValType::int32 || type == ValType::int64 || type == ValType::uint32) goto MarkInvalidValue;

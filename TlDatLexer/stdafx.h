@@ -16,6 +16,7 @@
 
 #include <cassert>
 #include <cctype>
+#include <cstdint>
 #include <cstring>
 #include <cwchar>
 #include <new>
