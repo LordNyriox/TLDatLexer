@@ -20,6 +20,8 @@
 #include <cwchar>
 #include <new>
 
+#include <PluginInterface.h>
+
 #include <Scintilla.h>
 #include <SciLexer.h>
 #include <ILexer.h>

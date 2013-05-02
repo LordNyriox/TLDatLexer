@@ -2,20 +2,11 @@
 
 #include "lexer.h"
 
-namespace {
+const char* TlDatLexer::name = "TlDat";
+const wchar_t* TlDatLexer::wname = L"TlDat";
+const wchar_t* TlDatLexer::statusText = L"Torchlight data file";
 
-namespace TextStyle {
-	enum: int {
-		default_,
-		openTag,
-		closeTag,
-		fieldType,
-		fieldName,
-		fieldValue,
-		fieldValueBool,
-		fieldValueNumber
-	};
-}
+namespace {
 
 enum class ValType {
 	unknown,
@@ -25,12 +16,15 @@ enum class ValType {
 	bin32,
 	bin64,
 	bool_,
-	string
+	string,
+	translate
 };
 
 bool nameEquals(unsigned int start, LexAccessor& doc, const char* val) {
-	for(; *val != '\0'; ++start, ++val)
+	for(; *val != '\0'; ++start, ++val) {
+		assert(!std::islower(*val));
 		if(std::toupper(doc[start]) != *val) return false;
+	}
 	return true;
 }
 
@@ -50,7 +44,7 @@ ValType getType(unsigned int start, unsigned int end, LexAccessor& doc) {
 	case sizeof("INTEGER64") - 1:
 		return
 			nameEquals(start, doc, "INTEGER64")? ValType::int64:
-			nameEquals(start, doc, "TRANSLATE")? ValType::string:
+			nameEquals(start, doc, "TRANSLATE")? ValType::translate:
 			ValType::unknown;
 	case sizeof("UNSIGNED INT") - 1:
 		return nameEquals(start, doc, "UNSIGNED INT")? ValType::uint32: ValType::unknown;
@@ -65,11 +59,11 @@ bool isNumeric(char c) { return c >= '0' && c <= '9'; }
 bool isSign(char c) { return c == '-' || c == '+'; }
 bool isExponent(char c) { return c == 'e' || c == 'E'; }
 
-bool find(char c, unsigned int& pos, LexAccessor& doc) {
-	for(; ; ++pos) {
-		char cur = doc.SafeGetCharAt(pos, '\n');
-		if(isEol(cur)) return false;
-		if(cur == c) return true; 
+bool find(char c, unsigned int& pos, unsigned int end, LexAccessor& doc) {
+	assert(pos <= end);
+	for(;; ++pos) {
+		if(pos == end) return false;
+		if(doc[pos] == c) return true; 
 	}
 }
 
@@ -79,6 +73,7 @@ unsigned int findEol(unsigned int start, LexAccessor& doc) {
 }
 
 bool ReadInt(unsigned int& pos, unsigned int end, LexAccessor& doc) {
+	assert(pos <= end);
 	if(pos == end) return false;
 	if(!isNumeric(doc[pos])) return false;
 
@@ -87,6 +82,7 @@ bool ReadInt(unsigned int& pos, unsigned int end, LexAccessor& doc) {
 }
 
 void LexLine(unsigned int start, unsigned int end, int line, LexAccessor& doc) {
+	assert(start < end);
 	char c;
 	
 	for(;;) {
@@ -100,7 +96,7 @@ void LexLine(unsigned int start, unsigned int end, int line, LexAccessor& doc) {
 		bool isCloseTag = false;
 		if(doc[start] == '/') isCloseTag = true;
 
-		if(!find(']', start, doc)) goto MarkDefaultLine;
+		if(!find(']', start, end, doc)) goto MarkDefaultLine;
 
 		if(isCloseTag) {
 			doc.ColourTo(start, TextStyle::closeTag);
@@ -116,7 +112,7 @@ void LexLine(unsigned int start, unsigned int end, int line, LexAccessor& doc) {
 					unsigned int indicEnd = end;
 					for(; --indicEnd != start && isWhitespace(doc[indicEnd]);) {}
 
-					doc.IndicatorFill(start, indicEnd + 1, 0, 1);
+					doc.IndicatorFill(start, indicEnd + 1, IndicatorStyle::error, 1);
 					break;
 				}
 			} while(++start != end);
@@ -126,20 +122,20 @@ void LexLine(unsigned int start, unsigned int end, int line, LexAccessor& doc) {
 		return;
 	} else if(c == '<') {
 		unsigned int old = start;
-		if(!find('>', start, doc)) goto MarkDefaultLine;
+		if(!find('>', start, end, doc)) goto MarkDefaultLine;
 
 		ValType type = getType(old, start, doc);
 		doc.ColourTo(start++, TextStyle::fieldType);
 		
 		if(type == ValType::unknown)
-			doc.IndicatorFill(old - 1, start, 0, 1); 
+			doc.IndicatorFill(old - 1, start, IndicatorStyle::error, 1); 
 
 		if(start == end) return;
-		if(!find(':', start, doc)) goto MarkDefaultLine;
+		if(!find(':', start, end, doc)) goto MarkDefaultLine;
 		doc.ColourTo(start, TextStyle::fieldName);
 
 		if(++start == end) return;
-		if(type == ValType::string || type == ValType::unknown) {
+		if(type == ValType::string || type == ValType::translate || type == ValType::unknown) {
 			doc.ColourTo(end - 1, TextStyle::fieldValue);
 			return;
 		} else if(type == ValType::bool_)
@@ -158,7 +154,7 @@ void LexLine(unsigned int start, unsigned int end, int line, LexAccessor& doc) {
 		if(start != end) {
 			for(++start; end-- != start;)
 				if(!isWhitespace(doc[end])) {
-					doc.IndicatorFill(old, end + 1, 0, 1);
+					doc.IndicatorFill(old, end + 1, IndicatorStyle::error, 1);
 					return;
 				}
 		}
@@ -202,7 +198,7 @@ void LexLine(unsigned int start, unsigned int end, int line, LexAccessor& doc) {
 		if(start == end) return;
 
 	MarkInvalidValue:
-		doc.IndicatorFill(old, end, 0, 1);
+		doc.IndicatorFill(old, end, IndicatorStyle::error, 1);
 		return;
 	}
 	
@@ -210,15 +206,30 @@ MarkDefaultLine:
 	doc.ColourTo(end - 1, TextStyle::default_);
 }
 
+unsigned int findTagStart(int line, sptr_t scintilla, SciFnDirect message) {
+	unsigned int begin = message(scintilla, SCI_POSITIONFROMLINE, line, 0);
+	while(message(scintilla, SCI_GETCHARAT, begin, 0) != '[') ++begin;
+	return begin;
 }
 
-void SCI_METHOD TLDatLexer::Lex(unsigned int start, int length, int, IDocument* pDoc) {
+unsigned int findTagEnd(int line, sptr_t scintilla, SciFnDirect message) {
+	unsigned int rbegin = message(scintilla, SCI_GETLINEENDPOSITION, line, 0);
+	while(message(scintilla, SCI_GETCHARAT, --rbegin, 0) != ']');
+	return rbegin + 1;
+}
+
+}
+
+void SCI_METHOD TlDatLexer::Lex(unsigned int start, int length, int, IDocument* pDoc) {
+	if(!doneOnce_)
+		length = pDoc->Length();
+
 	try {
 		LexAccessor doc(pDoc);
 		doc.StartAt(start);
 		doc.StartSegment(start);
 
-		pDoc->DecorationSetCurrentIndicator(0);
+		pDoc->DecorationSetCurrentIndicator(IndicatorStyle::error);
 
 		for(unsigned int end = start + static_cast<unsigned int>(length);;) {
 			unsigned int eol = findEol(start, doc);
@@ -244,9 +255,14 @@ void SCI_METHOD TLDatLexer::Lex(unsigned int start, int length, int, IDocument* 
 	}
 }
 
-void SCI_METHOD TLDatLexer::Fold(unsigned int start, int length, int, IDocument* doc) {
-	unsigned int end = start + length;
+void SCI_METHOD TlDatLexer::Fold(unsigned int start, int length, int, IDocument* doc) {
+	if(!doneOnce_) {
+		doneOnce_ = true;
+		length = doc->Length();
+	}
+
 	int line = doc->LineFromPosition(start);
+	int end = doc->LineFromPosition(start + length);
 	int level = SC_FOLDLEVELBASE;
 
 	if(line > 0) {
@@ -255,7 +271,7 @@ void SCI_METHOD TLDatLexer::Fold(unsigned int start, int length, int, IDocument*
 			level = (level & ~SC_FOLDLEVELHEADERFLAG) + 1;
 	}
 
-	for(; static_cast<unsigned int>(doc->LineStart(line)) < end; ++line) {
+	for(; line <= end; ++line) {
 		int state = doc->GetLineState(line);
 		if(state == TextStyle::closeTag && level > SC_FOLDLEVELBASE)
 			doc->SetLevel(line, --level);
@@ -267,52 +283,59 @@ void SCI_METHOD TLDatLexer::Fold(unsigned int start, int length, int, IDocument*
 	}
 }
 
-void matchTags(unsigned int pos, sptr_t window, SciFnDirect message) {
-	int curLine = message(window, SCI_LINEFROMPOSITION, pos, 0);
-	int state = message(window, SCI_GETLINESTATE, curLine, 0);
+void matchTags(unsigned int pos, sptr_t scintilla, SciFnDirect message) {
+	int curLine = message(scintilla, SCI_LINEFROMPOSITION, pos, 0);
+	int state = message(scintilla, SCI_GETLINESTATE, curLine, 0);
 	if(state == 0) return;
 
-	unsigned int curBegin, curEnd;
-	int opLine = curLine;
-	unsigned int opBegin, opEnd;
-
-	int level = (message(window, SCI_GETFOLDLEVEL, curLine, 0) & ~SC_FOLDLEVELHEADERFLAG);
-	if(state == TextStyle::openTag) {
-		int end = message(window, SCI_GETLINECOUNT, 0, 0);
-		for(;;) {
-			if(++opLine == end) return;
-			if((message(window, SCI_GETFOLDLEVEL, opLine, 0) & ~SC_FOLDLEVELHEADERFLAG) == level) break;
-		}
-	} else {
-		int end = -1;
-		for(;;) {
-			if(--opLine == end) return;
-			if((message(window, SCI_GETFOLDLEVEL, opLine, 0) & ~SC_FOLDLEVELHEADERFLAG) == level) break;
-		}
-	}
-
-	curBegin = message(window, SCI_POSITIONFROMLINE, curLine, 0);
-	curEnd = message(window, SCI_GETLINEENDPOSITION, curLine, 0);
-	while(message(window, SCI_GETCHARAT, curBegin, 0) != '[') ++curBegin;
-	while(message(window, SCI_GETCHARAT, curEnd - 1, 0) != ']') --curEnd;
-
-	opBegin = message(window, SCI_POSITIONFROMLINE, opLine, 0);
-	opEnd = message(window, SCI_GETLINEENDPOSITION, opLine, 0);
-	while(message(window, SCI_GETCHARAT, opBegin, 0) != '[') ++opBegin;
-	while(message(window, SCI_GETCHARAT, opEnd - 1, 0) != ']') --opEnd;
-
+	unsigned int curBegin = findTagStart(curLine, scintilla, message);
+	unsigned int curEnd = findTagEnd(curLine, scintilla, message);
 	if(pos < curBegin || pos > curEnd) return;
 
-	message(window, SCI_SETINDICATORCURRENT, SCE_UNIVERSAL_TAGMATCH, 0);
-	message(window, SCI_INDICATORFILLRANGE, curBegin, curEnd - curBegin);
-	message(window, SCI_INDICATORFILLRANGE, opBegin, opEnd - opBegin);
+	int opLine = curLine;
+
+	int level = 1;
+	if(state == TextStyle::openTag) {
+		int end = message(scintilla, SCI_GETLINECOUNT, 0, 0);
+		do {
+			if(++opLine == end) {
+				message(scintilla, SCI_BRACEBADLIGHT, curBegin, 0);
+				return;
+			}
+
+			switch(message(scintilla, SCI_GETLINESTATE, opLine, 0)) {
+			case TextStyle::openTag: ++level; break;
+			case TextStyle::closeTag: --level; break;
+			}
+		} while(level != 0);
+	} else {
+		int end = -1;
+		do {
+			if(--opLine == end) {
+				message(scintilla, SCI_BRACEBADLIGHT, curEnd - 1, 0);
+				return;
+			}
+
+			switch(message(scintilla, SCI_GETLINESTATE, opLine, 0)) {
+			case TextStyle::openTag: --level; break;
+			case TextStyle::closeTag: ++level; break;
+			}
+		} while(level != 0);
+	}
+
+	unsigned int opBegin = findTagStart(opLine, scintilla, message);
+	unsigned int opEnd = findTagEnd(opLine, scintilla, message);
+
+	message(scintilla, SCI_SETINDICATORCURRENT, SCE_UNIVERSAL_TAGMATCH, 0);
+	message(scintilla, SCI_INDICATORFILLRANGE, curBegin, curEnd - curBegin);
+	message(scintilla, SCI_INDICATORFILLRANGE, opBegin, opEnd - opBegin);
 
 	if(state == TextStyle::openTag)
-		message(window, SCI_BRACEHIGHLIGHT, curBegin, opEnd - 1);
+		message(scintilla, SCI_BRACEHIGHLIGHT, curBegin, opEnd - 1);
 	else
-		message(window, SCI_BRACEHIGHLIGHT, opBegin, curEnd - 1);
+		message(scintilla, SCI_BRACEHIGHLIGHT, opBegin, curEnd - 1);
 
-	int curColumn = message(window, SCI_GETCOLUMN, curBegin, 0);
-	int opColumn = message(window, SCI_GETCOLUMN, opBegin, 0);
-	message(window, SCI_SETHIGHLIGHTGUIDE, curColumn < opColumn? curColumn: opColumn, 0);
+	int curColumn = message(scintilla, SCI_GETCOLUMN, curBegin, 0);
+	int opColumn = message(scintilla, SCI_GETCOLUMN, opBegin, 0);
+	message(scintilla, SCI_SETHIGHLIGHTGUIDE, curColumn < opColumn? curColumn: opColumn, 0);
 }

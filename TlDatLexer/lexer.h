@@ -5,9 +5,16 @@
 
 typedef ILexer* (*LexerFactoryFunction)();
 
-class TLDatLexer: public ILexer {
+class TlDatLexer: public ILexer {
 public:
-	static ILexer* factory() { return new(std::nothrow) TLDatLexer; }
+	static const char* name;
+	static const wchar_t* wname;
+	static const std::size_t nameLen = 5;
+	static const wchar_t* statusText;
+
+	static ILexer* factory() { return new(std::nothrow) TlDatLexer; }
+
+	TlDatLexer(): doneOnce_(false) {}
 
 	int SCI_METHOD Version() const override { return 0; }
 	void SCI_METHOD Release() override { delete this; }
@@ -21,8 +28,31 @@ public:
 
 	void SCI_METHOD Lex(unsigned int, int, int, IDocument*) override;
 	void SCI_METHOD Fold(unsigned int, int, int, IDocument*) override;
+
+private:
+	// The whole document needs to be lexed for tag matching to work.
+	bool doneOnce_;
 };
 
-void matchTags(unsigned int pos, sptr_t windows, SciFnDirect message);
+void matchTags(unsigned int pos, sptr_t scintilla, SciFnDirect message);
+
+namespace TextStyle {
+	enum: int {
+		default_,
+		openTag,
+		closeTag,
+		fieldType,
+		fieldName,
+		fieldValue,
+		fieldValueBool,
+		fieldValueNumber
+	};
+}
+
+namespace IndicatorStyle {
+	enum {
+		error = 0
+	};
+}
 
 #endif
