@@ -15,11 +15,12 @@
 #include <windows.h>
 
 #include <cassert>
-#include <cctype>
 #include <cstdint>
 #include <cstring>
 #include <cwchar>
+#include <limits>
 #include <new>
+#include <type_traits>
 
 #include <PluginInterface.h>
 

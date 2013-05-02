@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include "lexer.h"
+#include "parse_int.h"
 
 const char* TlDatLexer::name = "TlDat";
 const wchar_t* TlDatLexer::wname = L"TlDat";
@@ -20,10 +21,18 @@ enum class ValType {
 	translate
 };
 
+bool isLower(char c) { return c >= 'a' && c <= 'z'; }
+char toUpper(char c) { return isLower(c)? c & ~0x20: c; }
+bool isWhitespace(char c) { return c == ' ' || c == '\t'; }
+bool isEol(char c) { return c == '\n' || c == '\r'; }
+bool isDigit(char c) { return c >= '0' && c <= '9'; }
+bool isSign(char c) { return c == '-' || c == '+'; }
+bool isExponent(char c) { return c == 'e' || c == 'E'; }
+
 bool nameEquals(unsigned int start, LexAccessor& doc, const char* val) {
 	for(; *val != '\0'; ++start, ++val) {
-		assert(!std::islower(*val));
-		if(std::toupper(doc[start]) != *val) return false;
+		assert(!isLower(*val));
+		if(toUpper(doc[start]) != *val) return false;
 	}
 	return true;
 }
@@ -53,12 +62,6 @@ ValType getType(unsigned int start, unsigned int end, LexAccessor& doc) {
 	return ValType::unknown;
 }
 
-bool isWhitespace(char c) { return c == ' ' || c == '\t'; }
-bool isEol(char c) { return c == '\n' || c == '\r'; }
-bool isDigit(char c) { return c >= '0' && c <= '9'; }
-bool isSign(char c) { return c == '-' || c == '+'; }
-bool isExponent(char c) { return c == 'e' || c == 'E'; }
-
 bool find(char c, unsigned int& pos, unsigned int end, LexAccessor& doc) {
 	assert(pos <= end);
 	for(;; ++pos) {
@@ -72,7 +75,7 @@ unsigned int findEol(unsigned int start, LexAccessor& doc) {
 		if(isEol(doc.SafeGetCharAt(start, '\n'))) return start;
 }
 
-bool ReadInt(unsigned int& pos, unsigned int end, LexAccessor& doc) {
+bool readInt(unsigned int& pos, unsigned int end, LexAccessor& doc) {
 	assert(pos <= end);
 	if(pos == end) return false;
 	if(!isDigit(doc[pos])) return false;
@@ -81,97 +84,46 @@ bool ReadInt(unsigned int& pos, unsigned int end, LexAccessor& doc) {
 	return true;
 }
 
-bool tryParseUInt32(const char* begin, const char* end) {
-	assert(begin < end);
-
-	std::uint32_t num = 0;
-	for(; begin != end; ++begin) {
-		if(!isDigit(*begin)) return false;
-		if(num > 429496729) return false;
-		num *= 10;
-		if(num > num + *begin - '0') return false;
-		num += *begin - '0';
-	}
-
-	return true;
-}
-
-bool tryParseInt32(const char* begin, const char* end) {
-	assert(begin < end);
-
-	bool negate = false;
-	if(isSign(*begin) && *begin++ == '-') negate = true;
-
-	std::int32_t num = 0;
-	for(; begin != end; ++begin) {
-		if(!isDigit(*begin)) return false;
-		if(num > 214748364) return false;
-		num *= 10;
-		if(num > num + *begin - '0' - negate) return false;
-		num += *begin - '0';
-	}
-
-	return true;
-}
-
-bool tryParseInt64(const char* begin, const char* end) {
-	assert(begin < end);
-
-	bool negate = false;
-	if(isSign(*begin) && *begin++ == '-') negate = true;
-
-	std::int64_t num = 0;
-	for(; begin != end; ++begin) {
-		if(!isDigit(*begin)) return false;
-		if(num > 922337203685477580) return false;
-		num *= 10;
-		if(num > num + *begin - '0' - negate) return false;
-		num += *begin - '0';
-	}
-
-	return true;
-}
-
-bool isValidUInt32(unsigned int start, unsigned int end, LexAccessor& doc) {
+bool readUInt32(unsigned int start, unsigned int end, LexAccessor& doc) {
 	static const std::size_t digits = 10;
 	
 	assert(start < end);
-	if(end - start > 11) return false;
+	if(end - start > digits) return false;
 	char num[digits];
 
 	char* i = num;
 	for(; start != end; ++i, ++start)
 		*i = doc[start];
 
-	return tryParseUInt32(num, i);
+	return isValidUInt32(num, i) == ParseError::none;
 }
 
-bool isValidInt32(unsigned int start, unsigned int end, LexAccessor& doc) {
+bool readInt32(unsigned int start, unsigned int end, LexAccessor& doc) {
 	static const std::size_t digits = 11;
 	
 	assert(start < end);
-	if(end - start > 11) return false;
+	if(end - start > digits) return false;
 	char num[digits];
 
 	char* i = num;
 	for(; start != end; ++i, ++start)
 		*i = doc[start];
 
-	return tryParseInt32(num, i);
+	return isValidInt32(num, i) == ParseError::none;
 }
 
-bool isValidInt64(unsigned int start, unsigned int end, LexAccessor& doc) {
+bool readInt64(unsigned int start, unsigned int end, LexAccessor& doc) {
 	static const std::size_t digits = 20;
 	
 	assert(start < end);
-	if(end - start > 11) return false;
+	if(end - start > digits) return false;
 	char num[digits];
 
 	char* i = num;
 	for(; start != end; ++i, ++start)
 		*i = doc[start];
 
-	return tryParseInt64(num, i);
+	return isValidInt64(num, i) == ParseError::none;
 }
 
 bool isValidBool(unsigned int start, unsigned int end, LexAccessor& doc) {
@@ -267,29 +219,29 @@ void LexLine(unsigned int start, unsigned int end, int line, LexAccessor& doc) {
 			if(isValidBool(start, end, doc)) return;
 			else goto MarkInvalidValue;
 		else if(type == ValType::int32)
-			if(isValidInt32(start, end, doc)) return;
+			if(readInt32(start, end, doc)) return;
 			else goto MarkInvalidValue;
 		else if(type == ValType::uint32)
-			if(isValidUInt32(start, end, doc)) return;
+			if(readUInt32(start, end, doc)) return;
 			else goto MarkInvalidValue;
 		else if(type == ValType::int64)
-			if(isValidInt64(start, end, doc)) return;
+			if(readInt64(start, end, doc)) return;
 			else goto MarkInvalidValue;
 
 		if(isSign(doc[start])) ++start;
-		if(!ReadInt(start, end, doc)) goto MarkInvalidValue;
+		if(!readInt(start, end, doc)) goto MarkInvalidValue;
 		if(start == end) return;
 		if(type == ValType::int32 || type == ValType::int64 || type == ValType::uint32) goto MarkInvalidValue;
 
 		if(doc[start] == '.') {
-			if(!ReadInt(++start, end, doc)) goto MarkInvalidValue;
+			if(!readInt(++start, end, doc)) goto MarkInvalidValue;
 			if(start == end) return;
 		}
 
 		if(isExponent(doc[start])) {
 			if(++start == end) goto MarkInvalidValue;
 			if(isSign(doc[start])) ++start;
-			if(!ReadInt(start, end, doc)) goto MarkInvalidValue;
+			if(!readInt(start, end, doc)) goto MarkInvalidValue;
 		}
 
 		if(start == end) return;
