@@ -18,7 +18,8 @@ enum class ValType {
 	bin64,
 	bool_,
 	string,
-	translate
+	translate,
+	note
 };
 
 bool isLower(char c) { return c >= 'a' && c <= 'z'; }
@@ -40,7 +41,10 @@ bool nameEquals(unsigned int start, LexAccessor& doc, const char* val) {
 ValType getType(unsigned int start, unsigned int end, LexAccessor& doc) {
 	switch(end - start)  {
 	case sizeof("BOOL") - 1:
-		return nameEquals(start, doc, "BOOL")? ValType::bool_: ValType::unknown; 
+		return 
+			nameEquals(start, doc, "BOOL")? ValType::bool_:
+			nameEquals(start, doc, "NOTE")? ValType::note:
+			ValType::unknown; 
 	case sizeof("FLOAT") - 1:
 		return nameEquals(start, doc, "FLOAT")? ValType::bin32: ValType::unknown;
 	case sizeof("DOUBLE") - 1:
@@ -192,6 +196,9 @@ void LexLine(unsigned int start, unsigned int end, int line, LexAccessor& doc) {
 		if(++start == end) return;
 		if(type == ValType::string || type == ValType::translate || type == ValType::unknown) {
 			doc.ColourTo(end - 1, TextStyle::fieldValue);
+			return;
+		} else if(type == ValType::note) {
+			doc.ColourTo(end - 1, TextStyle::fieldValueNote);
 			return;
 		} else if(type == ValType::bool_)
 			doc.ColourTo(end - 1, TextStyle::fieldValueBool);

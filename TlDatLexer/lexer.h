@@ -16,7 +16,7 @@ public:
 
 	TlDatLexer(): doneOnce_(false) {}
 
-	int SCI_METHOD Version() const override { return 0; }
+	int SCI_METHOD Version() const override { return lvOriginal; }
 	void SCI_METHOD Release() override { delete this; }
 	const char* SCI_METHOD PropertyNames() override { return ""; }
 	int SCI_METHOD PropertyType(const char*) override { return 0; }
@@ -45,7 +45,8 @@ namespace TextStyle {
 		fieldName,
 		fieldValue,
 		fieldValueBool,
-		fieldValueNumber
+		fieldValueNumber,
+		fieldValueNote
 	};
 }
 
