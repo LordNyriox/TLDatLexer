@@ -1,5 +1,5 @@
 # [TLDatLexer](https://www.runicgamesfansite.com/mod_downloads/modding-resources-tools-tl2/download-1535-tldatlexer-vs2015.html)
-[![Appveyor Build status](https://ci.appveyor.com/api/projects/status/7l0jhi1dr3lrwd5u/branch/update2?svg=true)](https://ci.appveyor.com/project/LordNyriox/tldatlexer/branch/update2)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0) [![Appveyor Build status](https://ci.appveyor.com/api/projects/status/7l0jhi1dr3lrwd5u/branch/update2?svg=true)](https://ci.appveyor.com/project/LordNyriox/tldatlexer/branch/update2)
 
 TLDatLexer is a plugin for Notepad++ which adds extended support for Torchlight data files.
 
