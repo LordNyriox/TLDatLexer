@@ -1,0 +1,30 @@
+version: 1.0.{build}
+image: Visual Studio 2015
+
+
+clone_depth: 1
+
+platform:
+    - x64
+    - Win32
+
+configuration:
+    - Release
+    - Debug
+
+install:
+    - if "%platform%"=="x64" set archi=amd64
+    - if "%platform%"=="Win32" set archi=x86
+    - call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %archi%
+
+build:
+    verbosity: minimal
+
+build_script:
+    - git submodule update --init
+    - cd c:\projects\TLDatLexer\TlDatLexer\
+    - msbuild TlDatLexer.vcxproj /p:configuration="%configuration%" /p:platform="%platform%" /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
+
+artifacts:
+    - name: "TlDatLexer.$(platform).$(configuration).dll"
+      path: \**\TlDatLexer.dll
