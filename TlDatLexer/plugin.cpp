@@ -31,13 +31,13 @@
 ///// Helper Functions /////
 
 HWND getCurrentScintilla() {
-	int which;
+	sptr_t which;
 	SendMessage(reinterpret_cast<HWND>(nppHandle), NPPM_GETCURRENTSCINTILLA, 0, reinterpret_cast<LPARAM>(&which));
 	return which == 0? scintillaHandle1: scintillaHandle2;
 }
 
 bool isTlDatLexerActive() {
-	int id;
+	sptr_t id;
 	SendMessage(nppHandle, NPPM_GETCURRENTLANGTYPE, 0, reinterpret_cast<LPARAM>(&id));
 	std::size_t nameLen = SendMessage(nppHandle, NPPM_GETLANGUAGENAME, id, reinterpret_cast<LPARAM>(nullptr));
 	if(nameLen != TlDatLexer::nameLen) return false;
@@ -111,7 +111,7 @@ void beNotified(SCNotification* notification) {
 		doTagMatch = false;
 		auto scintilla = getDirectScintillaPtr(notification->nmhdr.hwndFrom);
 		auto message = getDirectScintillaFunc(notification->nmhdr.hwndFrom);
-		unsigned int pos = message(scintilla, SCI_GETCURRENTPOS, 0, 0);
+		uptr_t pos = message(scintilla, SCI_GETCURRENTPOS, 0, 0);
 		matchTags(pos, scintilla, message);
 	} break;
 	case NPPN_FILEOPENED:
@@ -127,22 +127,22 @@ void beNotified(SCNotification* notification) {
 
 ///// Scintilla Exports /////
 
-int SCI_METHOD GetLexerCount() { return 1; }
+sptr_t SCI_METHOD GetLexerCount() { return 1; }
 
-void SCI_METHOD GetLexerName(unsigned int index, char* name, int len) {
+void SCI_METHOD GetLexerName(uptr_t index, char* name, sptr_t len) {
 	if(index == 0) {
 		std::strncpy(name, TlDatLexer::name, len);
 		name[len - 1] = '\0';
 	}
 }
 
-void SCI_METHOD GetLexerStatusText(unsigned int index, wchar_t* desc, int len) {
+void SCI_METHOD GetLexerStatusText(uptr_t index, wchar_t* desc, sptr_t len) {
 	if(index == 0) {
 		std::wcsncpy(desc, TlDatLexer::statusText, len);
 		desc[len - 1] = L'\0';
 	}
 }
 
-LexerFactoryFunction SCI_METHOD GetLexerFactory(unsigned int index) {
+LexerFactoryFunction SCI_METHOD GetLexerFactory(uptr_t index) {
 	return index == 0? TlDatLexer::factory: nullptr;
 }

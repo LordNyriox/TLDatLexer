@@ -38,7 +38,7 @@ ParseError isValidSigned(char* begin, char* end) {
 	assert(begin <= end);
 	if(begin == end) return ParseError::badFormat;
 
-	int negate = 0;
+	sptr_t negate = 0;
 	if(*begin == '-') {
 		negate = 1;
 		++begin;

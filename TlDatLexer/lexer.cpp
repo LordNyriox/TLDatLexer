@@ -48,7 +48,7 @@ bool isDigit(char c) { return c >= '0' && c <= '9'; }
 bool isSign(char c) { return c == '-' || c == '+'; }
 bool isExponent(char c) { return c == 'e' || c == 'E'; }
 
-bool nameEquals(unsigned int start, LexAccessor& doc, const char* val) {
+bool nameEquals(uptr_t start, LexAccessor& doc, const char* val) {
 	for(; *val != '\0'; ++start, ++val) {
 		assert(!isLower(*val));
 		if(toUpper(doc[start]) != *val) return false;
@@ -56,7 +56,7 @@ bool nameEquals(unsigned int start, LexAccessor& doc, const char* val) {
 	return true;
 }
 
-ValType getType(unsigned int start, unsigned int end, LexAccessor& doc) {
+ValType getType(uptr_t start, uptr_t end, LexAccessor& doc) {
 	switch(end - start)  {
 	case sizeof("BOOL") - 1:
 		return 
@@ -84,7 +84,7 @@ ValType getType(unsigned int start, unsigned int end, LexAccessor& doc) {
 	return ValType::unknown;
 }
 
-bool find(char c, unsigned int& pos, unsigned int end, LexAccessor& doc) {
+bool find(char c, unsigned int& pos, uptr_t end, LexAccessor& doc) {
 	assert(pos <= end);
 	for(;; ++pos) {
 		if(pos == end) return false;
@@ -92,12 +92,12 @@ bool find(char c, unsigned int& pos, unsigned int end, LexAccessor& doc) {
 	}
 }
 
-unsigned int findEol(unsigned int start, LexAccessor& doc) {
+uptr_t findEol(uptr_t start, LexAccessor& doc) {
 	for(;; ++start)
 		if(isEol(doc.SafeGetCharAt(start, '\n'))) return start;
 }
 
-bool readInt(unsigned int& pos, unsigned int end, LexAccessor& doc) {
+bool readInt(unsigned int& pos, uptr_t end, LexAccessor& doc) {
 	assert(pos <= end);
 	if(pos == end) return false;
 	if(!isDigit(doc[pos])) return false;
@@ -106,7 +106,7 @@ bool readInt(unsigned int& pos, unsigned int end, LexAccessor& doc) {
 	return true;
 }
 
-bool readUInt32(unsigned int start, unsigned int end, LexAccessor& doc) {
+bool readUInt32(uptr_t start, uptr_t end, LexAccessor& doc) {
 	static const std::size_t digits = 10;
 	
 	assert(start < end);
@@ -120,7 +120,7 @@ bool readUInt32(unsigned int start, unsigned int end, LexAccessor& doc) {
 	return isValidUInt32(num, i) == ParseError::none;
 }
 
-bool readInt32(unsigned int start, unsigned int end, LexAccessor& doc) {
+bool readInt32(uptr_t start, uptr_t end, LexAccessor& doc) {
 	static const std::size_t digits = 11;
 	
 	assert(start < end);
@@ -134,7 +134,7 @@ bool readInt32(unsigned int start, unsigned int end, LexAccessor& doc) {
 	return isValidInt32(num, i) == ParseError::none;
 }
 
-bool readInt64(unsigned int start, unsigned int end, LexAccessor& doc) {
+bool readInt64(uptr_t start, uptr_t end, LexAccessor& doc) {
 	static const std::size_t digits = 20;
 	
 	assert(start < end);
@@ -148,7 +148,7 @@ bool readInt64(unsigned int start, unsigned int end, LexAccessor& doc) {
 	return isValidInt64(num, i) == ParseError::none;
 }
 
-bool isValidBool(unsigned int start, unsigned int end, LexAccessor& doc) {
+bool isValidBool(uptr_t start, uptr_t end, LexAccessor& doc) {
 	assert(start <= end);
 	switch(end - start) {
 	default: return false;
@@ -158,7 +158,7 @@ bool isValidBool(unsigned int start, unsigned int end, LexAccessor& doc) {
 	}
 }
 
-void LexLine(unsigned int start, unsigned int end, int line, LexAccessor& doc) {
+void LexLine(uptr_t start, uptr_t end, sptr_t line, LexAccessor& doc) {
 	assert(start < end);
 	char c;
 	
@@ -186,7 +186,7 @@ void LexLine(unsigned int start, unsigned int end, int line, LexAccessor& doc) {
 		if(++start != end) {
 			do {
 				if(!isWhitespace(doc[start])) {
-					unsigned int indicEnd = end;
+					uptr_t indicEnd = end;
 					for(; --indicEnd != start && isWhitespace(doc[indicEnd]);) {}
 
 					doc.IndicatorFill(start, indicEnd + 1, IndicatorStyle::error, 1);
@@ -198,7 +198,7 @@ void LexLine(unsigned int start, unsigned int end, int line, LexAccessor& doc) {
 
 		return;
 	} else if(c == '<') {
-		unsigned int old = start;
+		uptr_t old = start;
 		if(!find('>', start, end, doc)) goto MarkDefaultLine;
 
 		ValType type = getType(old, start, doc);
@@ -280,21 +280,21 @@ MarkDefaultLine:
 	doc.ColourTo(end - 1, TextStyle::default_);
 }
 
-unsigned int findTagStart(int line, sptr_t scintilla, SciFnDirect message) {
-	unsigned int begin = message(scintilla, SCI_POSITIONFROMLINE, line, 0);
+uptr_t findTagStart(sptr_t line, sptr_t scintilla, SciFnDirect message) {
+	uptr_t begin = message(scintilla, SCI_POSITIONFROMLINE, line, 0);
 	while(message(scintilla, SCI_GETCHARAT, begin, 0) != '[') ++begin;
 	return begin;
 }
 
-unsigned int findTagEnd(int line, sptr_t scintilla, SciFnDirect message) {
-	unsigned int rbegin = message(scintilla, SCI_GETLINEENDPOSITION, line, 0);
+uptr_t findTagEnd(sptr_t line, sptr_t scintilla, SciFnDirect message) {
+	uptr_t rbegin = message(scintilla, SCI_GETLINEENDPOSITION, line, 0);
 	while(message(scintilla, SCI_GETCHARAT, --rbegin, 0) != ']');
 	return rbegin + 1;
 }
 
 }
 
-void SCI_METHOD TlDatLexer::Lex(unsigned int start, int length, int, IDocument* pDoc) {
+void SCI_METHOD TlDatLexer::Lex(uptr_t start, sptr_t length, sptr_t, IDocument* pDoc) {
 	if(!doneOnce_)
 		length = pDoc->Length();
 
@@ -305,9 +305,9 @@ void SCI_METHOD TlDatLexer::Lex(unsigned int start, int length, int, IDocument* 
 
 		pDoc->DecorationSetCurrentIndicator(IndicatorStyle::error);
 
-		for(unsigned int end = start + static_cast<unsigned int>(length);;) {
-			unsigned int eol = findEol(start, doc);
-			int line = doc.GetLine(start);
+		for(uptr_t end = start + static_cast<unsigned int>(length);;) {
+			uptr_t eol = findEol(start, doc);
+			sptr_t line = doc.GetLine(start);
 			doc.SetLineState(line, TextStyle::default_);
 
 			if(start != eol) {
@@ -329,15 +329,15 @@ void SCI_METHOD TlDatLexer::Lex(unsigned int start, int length, int, IDocument* 
 	}
 }
 
-void SCI_METHOD TlDatLexer::Fold(unsigned int start, int length, int, IDocument* doc) {
+void SCI_METHOD TlDatLexer::Fold(uptr_t start, sptr_t length, sptr_t, IDocument* doc) {
 	if(!doneOnce_) {
 		doneOnce_ = true;
 		length = doc->Length();
 	}
 
-	int line = doc->LineFromPosition(start);
-	int end = doc->LineFromPosition(start + length);
-	int level = SC_FOLDLEVELBASE;
+	sptr_t line = doc->LineFromPosition(start);
+	sptr_t end = doc->LineFromPosition(start + length);
+	sptr_t level = SC_FOLDLEVELBASE;
 
 	if(line > 0) {
 		level = doc->GetLevel(line - 1);
@@ -346,7 +346,7 @@ void SCI_METHOD TlDatLexer::Fold(unsigned int start, int length, int, IDocument*
 	}
 
 	for(; line <= end; ++line) {
-		int state = doc->GetLineState(line);
+		sptr_t state = doc->GetLineState(line);
 		if(state == TextStyle::closeTag && level > SC_FOLDLEVELBASE)
 			doc->SetLevel(line, --level);
 		else if(state == TextStyle::openTag) {
@@ -357,20 +357,20 @@ void SCI_METHOD TlDatLexer::Fold(unsigned int start, int length, int, IDocument*
 	}
 }
 
-void matchTags(unsigned int pos, sptr_t scintilla, SciFnDirect message) {
-	int curLine = message(scintilla, SCI_LINEFROMPOSITION, pos, 0);
-	int state = message(scintilla, SCI_GETLINESTATE, curLine, 0);
+void matchTags(uptr_t pos, sptr_t scintilla, SciFnDirect message) {
+	sptr_t curLine = message(scintilla, SCI_LINEFROMPOSITION, pos, 0);
+	sptr_t state = message(scintilla, SCI_GETLINESTATE, curLine, 0);
 	if(state == 0) return;
 
-	unsigned int curBegin = findTagStart(curLine, scintilla, message);
-	unsigned int curEnd = findTagEnd(curLine, scintilla, message);
+	uptr_t curBegin = findTagStart(curLine, scintilla, message);
+	uptr_t curEnd = findTagEnd(curLine, scintilla, message);
 	if(pos < curBegin || pos > curEnd) return;
 
-	int opLine = curLine;
+	sptr_t opLine = curLine;
 
-	int level = 1;
+	sptr_t level = 1;
 	if(state == TextStyle::openTag) {
-		int end = message(scintilla, SCI_GETLINECOUNT, 0, 0);
+		sptr_t end = message(scintilla, SCI_GETLINECOUNT, 0, 0);
 		do {
 			if(++opLine == end) {
 				message(scintilla, SCI_BRACEBADLIGHT, curBegin, 0);
@@ -383,7 +383,7 @@ void matchTags(unsigned int pos, sptr_t scintilla, SciFnDirect message) {
 			}
 		} while(level != 0);
 	} else {
-		int end = -1;
+		sptr_t end = -1;
 		do {
 			if(--opLine == end) {
 				message(scintilla, SCI_BRACEBADLIGHT, curEnd - 1, 0);
@@ -397,8 +397,8 @@ void matchTags(unsigned int pos, sptr_t scintilla, SciFnDirect message) {
 		} while(level != 0);
 	}
 
-	unsigned int opBegin = findTagStart(opLine, scintilla, message);
-	unsigned int opEnd = findTagEnd(opLine, scintilla, message);
+	uptr_t opBegin = findTagStart(opLine, scintilla, message);
+	uptr_t opEnd = findTagEnd(opLine, scintilla, message);
 
 	message(scintilla, SCI_SETINDICATORCURRENT, SCE_UNIVERSAL_TAGMATCH, 0);
 	message(scintilla, SCI_INDICATORFILLRANGE, curBegin, curEnd - curBegin);
@@ -409,7 +409,7 @@ void matchTags(unsigned int pos, sptr_t scintilla, SciFnDirect message) {
 	else
 		message(scintilla, SCI_BRACEHIGHLIGHT, opBegin, curEnd - 1);
 
-	int curColumn = message(scintilla, SCI_GETCOLUMN, curBegin, 0);
-	int opColumn = message(scintilla, SCI_GETCOLUMN, opBegin, 0);
+	sptr_t curColumn = message(scintilla, SCI_GETCOLUMN, curBegin, 0);
+	sptr_t opColumn = message(scintilla, SCI_GETCOLUMN, opBegin, 0);
 	message(scintilla, SCI_SETHIGHLIGHTGUIDE, curColumn < opColumn? curColumn: opColumn, 0);
 }
