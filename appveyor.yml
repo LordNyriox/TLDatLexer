@@ -1,8 +1,6 @@
-version: 1.0.{build}
-image: Visual Studio 2015
+version: 5.0.{build}
+image: Visual Studio 2017
 
-
-clone_depth: 1
 
 platform:
     - x64
@@ -14,16 +12,18 @@ configuration:
 
 install:
     - if "%platform%"=="x64" set archi=amd64
+    - if "%platform%"=="x64" set platform_input=x64
+    
     - if "%platform%"=="Win32" set archi=x86
-    - call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %archi%
+    - if "%platform%"=="Win32" set platform_input=Win32
 
-build:
-    verbosity: minimal
+    - call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat" %archi%
+
 
 build_script:
     - git submodule update --init
     - git submodule update --remote
-    - cd c:\projects\TLDatLexer\TlDatLexer\
+    - cd "%APPVEYOR_BUILD_FOLDER%"\TlDatLexer\
     - msbuild TlDatLexer.vcxproj /p:configuration="%configuration%" /p:platform="%platform%" /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
 
 artifacts:
