@@ -22,6 +22,7 @@ build:
 
 build_script:
     - git submodule update --init
+    - git submodule update --remote
     - cd c:\projects\TLDatLexer\TlDatLexer\
     - msbuild TlDatLexer.vcxproj /p:configuration="%configuration%" /p:platform="%platform%" /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
 
