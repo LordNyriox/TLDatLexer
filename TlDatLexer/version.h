@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define TLDATLEXER_VERSION_STRING "0.5.0"
+#define TLDATLEXER_VERSION_STRING "0.5.1"
 #define TLDATLEXER_VERSION_MAJOR 0
 #define TLDATLEXER_VERSION_MINOR 5
-#define TLDATLEXER_VERSION_PATCH 0
+#define TLDATLEXER_VERSION_PATCH 1
